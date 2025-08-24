@@ -276,9 +276,9 @@ export function ReaderInterface({ document, userId }: ReaderInterfaceProps) {
               <EnhancedTextDisplay
                 text={document.cleanedText}
                 currentWordIndex={currentWordIndex}
-              currentSentenceIndex={currentSentenceIndex}
-              highlightMode={preferences.highlightMode}
-              searchQuery={searchQuery}
+                currentSentenceIndex={currentSentenceIndex}
+                highlightMode={preferences.highlightMode}
+                searchQuery={searchQuery}
               autoScroll={preferences.autoScroll}
               onWordClick={(index) => {
                 const audio = audioRef.current
