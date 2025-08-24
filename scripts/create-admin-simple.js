@@ -1,5 +1,6 @@
-import { Redis } from "@upstash/redis"
-import bcrypt from "bcryptjs"
+const { Redis } = require("@upstash/redis")
+const bcrypt = require("bcryptjs")
+const { v4: uuidv4 } = require("uuid")
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
@@ -27,30 +28,33 @@ async function createAdmin() {
     console.log("[INFO] Password hashed successfully")
 
     // Create user data
+    const userId = uuidv4()
     const userData = {
-      id: `admin_${Date.now()}`,
+      id: userId,
       email: adminEmail,
-      password: hashedPassword, // Using 'password' field as expected by auth
-      role: "admin",
+      password: hashedPassword,
+      isAdmin: "true",
       createdAt: new Date().toISOString(),
-      isActive: "true",
     }
 
     // Store user data
     const userKey = `user:${adminEmail}`
     console.log("[INFO] Storing user data with key:", userKey)
 
-    // Use hmset to store hash data
-    await redis.hmset(userKey, userData)
+    // Use hset to store hash data for consistency
+    await redis.hset(userKey, userData)
     console.log("[INFO] User data stored successfully")
 
     // Verify the data was stored
     const storedData = await redis.hgetall(userKey)
     console.log("[INFO] Verification - stored data:", storedData)
 
-    // Also store in users index
-    await redis.sadd("users", userData.id)
+    // Add to users set with email
+    await redis.sadd("users", adminEmail)
     console.log("[INFO] Added to users index")
+
+    // Add to user ID -> email index
+    await redis.set(`user-id-to-email:${userId}`, adminEmail)
 
     console.log("[SUCCESS] Admin user created successfully!")
     console.log("[INFO] You can now login with:", adminEmail)

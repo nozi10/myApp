@@ -1,5 +1,6 @@
-import { kv } from "@vercel/kv"
-import bcrypt from "bcryptjs"
+const { kv } = require("@vercel/kv")
+const bcrypt = require("bcryptjs")
+const { v4: uuidv4 } = require("uuid")
 
 async function initializeAdmin() {
   console.log("Creating initial admin user...")
@@ -16,27 +17,27 @@ async function initializeAdmin() {
     }
 
     // Generate user ID
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const userId = uuidv4()
 
     // Hash password
     const hashedPassword = await bcrypt.hash(adminPassword, 12)
 
     // Store user in Redis with proper key structure
-    const userKey = `user:${userId}`
+    const userKey = `user:${adminEmail}`
     await kv.hset(userKey, {
       id: userId,
       email: adminEmail,
       name: "Administrator",
-      passwordHash: hashedPassword,
+      password: hashedPassword,
       isAdmin: "true",
       createdAt: new Date().toISOString(),
     })
 
-    // Add email-to-ID mapping
-    await kv.hset("emails_to_ids", adminEmail, userId)
+    // Add to user ID -> email index
+    await kv.set(`user-id-to-email:${userId}`, adminEmail)
 
     // Add to users set
-    await kv.sadd("users", userId)
+    await kv.sadd("users", adminEmail)
 
     // Initialize user's documents set
     await kv.sadd(`user:${userId}:documents`, "placeholder")

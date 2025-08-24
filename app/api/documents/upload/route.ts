@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
 import { kv } from "@vercel/kv"
+import { v4 as uuidv4 } from "uuid"
 import { getSession } from "@/lib/auth"
+import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,26 +25,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file type and size
-    const allowedTypes = [
-      "application/pdf",
-      "image/png",
-      "image/jpeg",
-      "image/jpg",
-      "image/gif",
-      "image/bmp",
-      "image/webp",
-    ]
-    if (!allowedTypes.includes(file.type)) {
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       return NextResponse.json({ error: "Unsupported file type" }, { status: 400 })
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      // 50MB
-      return NextResponse.json({ error: "File too large" }, { status: 400 })
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json({ error: `File too large (max ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB)` }, { status: 400 })
     }
 
     // Generate document ID
-    const documentId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const documentId = uuidv4()
 
     // Upload to Vercel Blob
     const blob = await put(`documents/${documentId}/${file.name}`, file, {
@@ -65,6 +57,9 @@ export async function POST(request: NextRequest) {
 
     // Add to user's document index
     await kv.sadd(`user:${userId}:documents`, documentId)
+
+    // Add to global documents index
+    await kv.sadd("documents", documentId)
 
     return NextResponse.json({
       documentId,

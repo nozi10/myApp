@@ -1,5 +1,6 @@
-import { Redis } from "@upstash/redis"
-import bcrypt from "bcryptjs"
+const { Redis } = require("@upstash/redis")
+const bcrypt = require("bcryptjs")
+const { v4: uuidv4 } = require("uuid")
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
@@ -45,7 +46,7 @@ async function createAdmin() {
     }
 
     // Generate unique user ID
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const userId = uuidv4()
     console.log(`🆔 Generated User ID: ${userId}`)
 
     // Hash password
@@ -63,6 +64,9 @@ async function createAdmin() {
 
     console.log("👥 Adding to users set...")
     await redis.sadd("users", adminEmail)
+
+    // Add to user ID -> email index
+    await redis.set(`user-id-to-email:${userId}`, adminEmail)
 
     // Verify creation
     console.log("✅ Verifying admin creation...")
