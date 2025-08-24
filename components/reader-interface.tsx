@@ -166,25 +166,25 @@ export function ReaderInterface({ document, userId }: ReaderInterfaceProps) {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-        setIsFullscreen(false);
-      }
-    }
-  }
+  // const toggleFullscreen = () => {
+  //   if (!document.fullscreenElement) {
+  //     document.documentElement.requestFullscreen();
+  //     setIsFullscreen(true);
+  //   } else {
+  //     if (document.exitFullscreen) {
+  //       document.exitFullscreen();
+  //       setIsFullscreen(false);
+  //     }
+  //   }
+  // }
 
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+  // useEffect(() => {
+  //   const handleFullscreenChange = () => {
+  //     setIsFullscreen(!!document.fullscreenElement);
+  //   };
+  //   document.addEventListener('fullscreenchange', handleFullscreenChange);
+  //   return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  // }, []);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
@@ -210,9 +210,9 @@ export function ReaderInterface({ document, userId }: ReaderInterfaceProps) {
             <Button variant="outline" size="icon" onClick={() => setZoomLevel(z => Math.min(2, z + 0.1))}>
               <ZoomIn className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={toggleFullscreen}>
+            {/* <Button variant="outline" size="icon" onClick={toggleFullscreen}>
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </Button>
+            </Button> */}
             <Separator orientation="vertical" className="h-6 mx-2" />
             <Button variant="outline" size="sm" onClick={() => setShowSearch(s => !s)}>
               Search
@@ -227,7 +227,7 @@ export function ReaderInterface({ document, userId }: ReaderInterfaceProps) {
       {/* Main Layout (Sidebar + Content) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
-        <aside className={`${isFullscreen ? "hidden" : "w-80"} bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 p-4 overflow-y-auto flex flex-col space-y-4 transition-all duration-300`}>
+        <aside className={`w-80 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 p-4 overflow-y-auto flex flex-col space-y-4 transition-all duration-300`}>
           {showSearch && (
             <div>
               <h2 className="text-lg font-semibold mb-2">Search Document</h2>
