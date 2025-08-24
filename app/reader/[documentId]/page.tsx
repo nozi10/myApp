@@ -28,13 +28,15 @@ export default async function ReaderPage({ params }: ReaderPageProps) {
     title: document.title as string,
     cleanedText: document.cleanedText as string,
     audioUrl: document.audioUrl as string,
+    fileUrl: document.fileUrl as string,
     fileType: document.fileType as string,
     uploadedAt: document.uploadedAt as string,
+    speechMarks: document.speechMarks ? JSON.parse(document.speechMarks as string) : [],
   }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      <ReaderInterface document={documentData} />
+      <ReaderInterface document={documentData} userId={session.userId} />
     </div>
   )
 }

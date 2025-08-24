@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, FileText, ImageIcon, X, CheckCircle, Volume2, Play } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
+import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/utils"
 
 interface DocumentUploadProps {
   userId: string
@@ -73,6 +74,7 @@ export function DocumentUpload({ userId, onSuccess, onCancel }: DocumentUploadPr
     accept: {
       "application/pdf": [".pdf"],
       "image/*": [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
     },
     maxSize: 50 * 1024 * 1024, // 50MB
     disabled: isUploading,
@@ -88,20 +90,11 @@ export function DocumentUpload({ userId, onSuccess, onCancel }: DocumentUploadPr
           throw new Error("Invalid file")
         }
 
-        if (uploadFile.file.size > 50 * 1024 * 1024) {
-          throw new Error("File too large (max 50MB)")
+        if (uploadFile.file.size > MAX_FILE_SIZE_BYTES) {
+          throw new Error(`File too large (max ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB)`)
         }
 
-        const allowedTypes = [
-          "application/pdf",
-          "image/png",
-          "image/jpeg",
-          "image/jpg",
-          "image/gif",
-          "image/bmp",
-          "image/webp",
-        ]
-        if (!allowedTypes.includes(uploadFile.file.type)) {
+        if (!ALLOWED_FILE_TYPES.includes(uploadFile.file.type)) {
           throw new Error("Unsupported file type")
         }
 
@@ -274,17 +267,11 @@ export function DocumentUpload({ userId, onSuccess, onCancel }: DocumentUploadPr
 
         const data = await response.json()
         if (data.audioChunks && data.audioChunks.length > 0) {
-          // Convert base64 chunks to blob URL
+          // Decode the base64 chunks and create a blob.
           const audioData = data.audioChunks.map((chunk: string) =>
             Uint8Array.from(atob(chunk), (c) => c.charCodeAt(0)),
           )
-          const combinedArray = new Uint8Array(audioData.reduce((acc, arr) => acc + arr.length, 0))
-          let offset = 0
-          audioData.forEach((arr) => {
-            combinedArray.set(arr, offset)
-            offset += arr.length
-          })
-          const blob = new Blob([combinedArray], { type: "audio/mpeg" })
+          const blob = new Blob(audioData, { type: "audio/mpeg" })
           audioUrl = URL.createObjectURL(blob)
         } else {
           throw new Error("No audio data received from Polly")
@@ -338,7 +325,9 @@ export function DocumentUpload({ userId, onSuccess, onCancel }: DocumentUploadPr
     } catch (error) {
       console.error("Voice preview error:", error)
       setIsPreviewingVoice(false)
-      alert(`Voice preview failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred."
+      console.error("Full voice preview error:", error)
+      alert(`Voice preview failed: ${errorMessage}`)
     }
   }
 
@@ -369,7 +358,7 @@ export function DocumentUpload({ userId, onSuccess, onCancel }: DocumentUploadPr
               <p className="text-lg font-medium mb-2">{isDragActive ? "Drop files here" : "Drag & drop files here"}</p>
               <p className="text-muted-foreground mb-4">or click to select files</p>
               <p className="text-sm text-muted-foreground">
-                Supports PDF and image files (PNG, JPG, GIF, etc.) up to 50MB
+                Supports PDF, DOCX, and image files (PNG, JPG, etc.) up to 50MB
               </p>
             </div>
           )}
@@ -382,6 +371,8 @@ export function DocumentUpload({ userId, onSuccess, onCancel }: DocumentUploadPr
                     <div className="flex items-center space-x-3">
                       {uploadFile.file.type.startsWith("image/") ? (
                         <ImageIcon className="h-5 w-5 text-blue-500" />
+                      ) : uploadFile.file.type.includes("word") ? (
+                        <FileText className="h-5 w-5 text-blue-700" />
                       ) : (
                         <FileText className="h-5 w-5 text-red-500" />
                       )}
@@ -495,7 +486,7 @@ export function DocumentUpload({ userId, onSuccess, onCancel }: DocumentUploadPr
                     const input = document.createElement("input")
                     input.type = "file"
                     input.multiple = true
-                    input.accept = ".pdf,.png,.jpg,.jpeg,.gif,.bmp,.webp"
+                    input.accept = ".pdf,.docx,.png,.jpg,.jpeg,.gif,.bmp,.webp"
                     input.onchange = (e) => {
                       const filesToAdd = Array.from((e.target as HTMLInputElement).files || [])
                       onDrop(filesToAdd)

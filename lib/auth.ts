@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { getIronSession } from "iron-session"
 import bcrypt from "bcryptjs"
+import { v4 as uuidv4 } from "uuid"
 import { Redis } from "@upstash/redis"
 
 export interface SessionData {
@@ -11,8 +12,16 @@ export interface SessionData {
   isLoggedIn: boolean
 }
 
+const sessionPassword = process.env.SESSION_SECRET
+
+if (!sessionPassword && process.env.NODE_ENV === "production") {
+  throw new Error(
+    "SESSION_SECRET environment variable is not set in production. Please set it to a secure, random string of at least 32 characters.",
+  )
+}
+
 const sessionOptions = {
-  password: process.env.SESSION_SECRET || "complex_password_at_least_32_characters_long",
+  password: sessionPassword || "default_session_secret_for_development_env_only_32_chars",
   cookieName: "ai-audio-reader-session",
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",
@@ -111,7 +120,7 @@ export async function createUser(email: string, password: string, isAdmin = fals
     const hashedPassword = await bcrypt.hash(password, 12)
 
     // Generate user ID
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const userId = uuidv4()
 
     // Store user in Redis
     const userKey = `user:${email}`
@@ -125,6 +134,9 @@ export async function createUser(email: string, password: string, isAdmin = fals
 
     // Add to user index
     await redis.sadd("users", email)
+
+    // Add to user ID -> email index
+    await redis.set(`user-id-to-email:${userId}`, email)
 
     return { success: true, userId }
   } catch (error) {

@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis"
+import { formatBytes } from "./utils"
 
 // Database utility functions for Redis operations
 
@@ -66,23 +67,15 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 
 export async function getUserById(userId: string): Promise<User | null> {
   try {
-    // Find user by scanning all user keys (not efficient for large scale, but works for small user base)
-    const userEmails = await getRedis().smembers("users")
+    // 1. Look up email from user ID using the index
+    const email = await getRedis().get<string>(`user-id-to-email:${userId}`)
 
-    for (const email of userEmails) {
-      const userData = await getRedis().hgetall(`user:${email}`)
-      if (userData.id === userId) {
-        return {
-          id: userId,
-          email,
-          password: userData.password as string,
-          isAdmin: userData.isAdmin === "true",
-          createdAt: userData.createdAt as string,
-        }
-      }
+    if (!email) {
+      return null // User not found
     }
 
-    return null
+    // 2. Fetch the user data using the email (which is efficient)
+    return await getUserByEmail(email)
   } catch (error) {
     console.error("Error fetching user by ID:", error)
     return null
@@ -90,15 +83,20 @@ export async function getUserById(userId: string): Promise<User | null> {
 }
 
 export async function getAllUsers(): Promise<User[]> {
-  const userEmails = await getRedis().smembers("users")
-  const users: User[] = []
+  const redis = getRedis()
+  const userEmails = await redis.smembers("users")
 
-  for (const email of userEmails) {
-    const user = await getUserByEmail(email)
-    if (user) {
-      users.push(user)
-    }
+  if (userEmails.length === 0) {
+    return []
   }
+
+  const pipeline = redis.pipeline()
+  userEmails.forEach((email) => {
+    pipeline.hgetall(`user:${email}`)
+  })
+  const results = (await pipeline.exec<Record<string, unknown>[]>()) as User[]
+
+  const users = results.filter((user) => user !== null && Object.keys(user).length > 0)
 
   return users.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
@@ -138,33 +136,39 @@ export async function getDocumentById(documentId: string): Promise<Document | nu
 }
 
 export async function getUserDocuments(userId: string): Promise<Document[]> {
-  const documentIds = await getRedis().smembers(`user:${userId}:documents`)
-  const documents: Document[] = []
+  const redis = getRedis()
+  const documentIds = await redis.smembers(`user:${userId}:documents`)
 
-  for (const documentId of documentIds) {
-    const document = await getDocumentById(documentId)
-    if (document) {
-      documents.push(document)
-    }
+  if (documentIds.length === 0) {
+    return []
   }
+
+  const pipeline = redis.pipeline()
+  documentIds.forEach((docId) => {
+    pipeline.hgetall(`document:${docId}`)
+  })
+  const results = (await pipeline.exec<Record<string, unknown>[]>()) as Document[]
+
+  const documents = results.filter((doc) => doc !== null && Object.keys(doc).length > 0)
 
   return documents.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
 }
 
 export async function getAllDocuments(): Promise<Document[]> {
-  const userEmails = await getRedis().smembers("users")
-  const documents: Document[] = []
+  const redis = getRedis()
+  const documentIds = await redis.smembers("documents")
 
-  for (const email of userEmails) {
-    const userDocuments = await getRedis().smembers(`user:${email}:documents`)
-
-    for (const docId of userDocuments) {
-      const document = await getDocumentById(docId)
-      if (document) {
-        documents.push(document)
-      }
-    }
+  if (documentIds.length === 0) {
+    return []
   }
+
+  const pipeline = redis.pipeline()
+  documentIds.forEach((docId) => {
+    pipeline.hgetall(`document:${docId}`)
+  })
+  const results = (await pipeline.exec<Record<string, unknown>[]>()) as Document[]
+
+  const documents = results.filter((doc) => doc !== null && Object.keys(doc).length > 0)
 
   return documents.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
 }
@@ -189,6 +193,9 @@ export async function deleteDocument(documentId: string): Promise<void> {
   // Remove from user's document set
   await getRedis().srem(`user:${document.userId}:documents`, documentId)
 
+  // Remove from global documents set
+  await getRedis().srem("documents", documentId)
+
   // Delete document data
   await getRedis().del(`document:${documentId}`)
 }
@@ -209,6 +216,7 @@ export async function deleteUser(userId: string): Promise<void> {
   // Delete user data
   await getRedis().del(`user:${user.email}`)
   await getRedis().del(`user:${userId}:documents`)
+  await getRedis().del(`user-id-to-email:${userId}`)
 }
 
 // Statistics
@@ -217,15 +225,7 @@ export async function getSystemStats() {
   const documents = await getAllDocuments()
 
   const processingDocuments = documents.filter((doc) => doc.status === "processing").length
-  const totalStorageBytes = documents.reduce((total, doc) => total + doc.fileSize, 0)
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 MB"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i]
-  }
+  const totalStorageBytes = documents.reduce((total, doc) => total + Number(doc.fileSize || 0), 0)
 
   return {
     totalUsers: users.length,

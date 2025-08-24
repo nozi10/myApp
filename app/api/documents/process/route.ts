@@ -3,6 +3,7 @@ import { Redis } from "@upstash/redis"
 import { getSession } from "@/lib/auth"
 import { put } from "@vercel/blob"
 import { OpenAI } from "openai"
+import mammoth from "mammoth"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -56,6 +57,8 @@ async function processDocumentAsync(documentId: string, fileUrl: string, fileTyp
       extractedText = await extractTextFromPDF(fileUrl)
     } else if (fileType.startsWith("image/")) {
       extractedText = await extractTextFromImage(fileUrl)
+    } else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      extractedText = await extractTextFromDocx(fileUrl)
     }
 
     if (!extractedText.trim()) {
@@ -132,6 +135,21 @@ async function extractTextFromPDF(fileUrl: string): Promise<string> {
   } catch (error) {
     console.error("PDF extraction error:", error)
     throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : "Unknown error"}`)
+  }
+}
+
+async function extractTextFromDocx(fileUrl: string): Promise<string> {
+  try {
+    const response = await fetch(fileUrl)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch DOCX file: ${response.statusText}`)
+    }
+    const arrayBuffer = await response.arrayBuffer()
+    const result = await mammoth.extractRawText({ arrayBuffer })
+    return result.value
+  } catch (error) {
+    console.error("DOCX extraction error:", error)
+    throw new Error(`Failed to extract text from DOCX: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
 
