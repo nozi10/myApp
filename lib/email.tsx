@@ -1,10 +1,17 @@
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+let resend: Resend | undefined
+
+function getResend() {
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY)
+  }
+  return resend
+}
 
 export async function sendWelcomeEmail(email: string, password: string) {
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: process.env.FROM_EMAIL || "noreply@yourdomain.com",
       to: [email],
       subject: "Welcome to AI Audio Reader",
