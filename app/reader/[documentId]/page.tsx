@@ -23,6 +23,11 @@ export default async function ReaderPage({ params }: ReaderPageProps) {
     redirect(`/dashboard?error=Document not ready for reading`)
   }
 
+  const speechMarksString = document.speechMarks as string | null
+  const speechMarks = (speechMarksString && speechMarksString.length > 2)
+    ? JSON.parse(speechMarksString)
+    : []
+
   const documentData = {
     id: document.id as string,
     title: document.title as string,
@@ -31,7 +36,7 @@ export default async function ReaderPage({ params }: ReaderPageProps) {
     fileUrl: document.fileUrl as string,
     fileType: document.fileType as string,
     uploadedAt: document.uploadedAt as string,
-    speechMarks: document.speechMarks ? JSON.parse(document.speechMarks as string) : [],
+    speechMarks: speechMarks,
   }
 
   return (
