@@ -2,10 +2,17 @@ import { Redis } from "@upstash/redis"
 
 // Database utility functions for Redis operations
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
+let redis: Redis
+
+function getRedis() {
+  if (!redis) {
+    redis = new Redis({
+      url: process.env.KV_REST_API_URL!,
+      token: process.env.KV_REST_API_TOKEN!,
+    })
+  }
+  return redis
+}
 
 export interface User {
   id: string
@@ -39,7 +46,7 @@ export interface Document {
 // User operations
 export async function getUserByEmail(email: string): Promise<User | null> {
   try {
-    const userData = await redis.hgetall(`user:${email}`)
+    const userData = await getRedis().hgetall(`user:${email}`)
     if (!userData || Object.keys(userData).length === 0) {
       return null
     }
@@ -60,10 +67,10 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 export async function getUserById(userId: string): Promise<User | null> {
   try {
     // Find user by scanning all user keys (not efficient for large scale, but works for small user base)
-    const userEmails = await redis.smembers("users")
+    const userEmails = await getRedis().smembers("users")
 
     for (const email of userEmails) {
-      const userData = await redis.hgetall(`user:${email}`)
+      const userData = await getRedis().hgetall(`user:${email}`)
       if (userData.id === userId) {
         return {
           id: userId,
@@ -83,7 +90,7 @@ export async function getUserById(userId: string): Promise<User | null> {
 }
 
 export async function getAllUsers(): Promise<User[]> {
-  const userEmails = await redis.smembers("users")
+  const userEmails = await getRedis().smembers("users")
   const users: User[] = []
 
   for (const email of userEmails) {
@@ -99,7 +106,7 @@ export async function getAllUsers(): Promise<User[]> {
 // Document operations
 export async function getDocumentById(documentId: string): Promise<Document | null> {
   try {
-    const documentData = await redis.hgetall(`document:${documentId}`)
+    const documentData = await getRedis().hgetall(`document:${documentId}`)
     if (!documentData || Object.keys(documentData).length === 0) {
       return null
     }
@@ -131,7 +138,7 @@ export async function getDocumentById(documentId: string): Promise<Document | nu
 }
 
 export async function getUserDocuments(userId: string): Promise<Document[]> {
-  const documentIds = await redis.smembers(`user:${userId}:documents`)
+  const documentIds = await getRedis().smembers(`user:${userId}:documents`)
   const documents: Document[] = []
 
   for (const documentId of documentIds) {
@@ -145,11 +152,11 @@ export async function getUserDocuments(userId: string): Promise<Document[]> {
 }
 
 export async function getAllDocuments(): Promise<Document[]> {
-  const userEmails = await redis.smembers("users")
+  const userEmails = await getRedis().smembers("users")
   const documents: Document[] = []
 
   for (const email of userEmails) {
-    const userDocuments = await redis.smembers(`user:${email}:documents`)
+    const userDocuments = await getRedis().smembers(`user:${email}:documents`)
 
     for (const docId of userDocuments) {
       const document = await getDocumentById(docId)
@@ -172,7 +179,7 @@ export async function updateDocumentStatus(
     ...Object.fromEntries(Object.entries(additionalData || {}).map(([key, value]) => [key, String(value)])),
   }
 
-  await redis.hset(`document:${documentId}`, updateData)
+  await getRedis().hset(`document:${documentId}`, updateData)
 }
 
 export async function deleteDocument(documentId: string): Promise<void> {
@@ -180,10 +187,10 @@ export async function deleteDocument(documentId: string): Promise<void> {
   if (!document) return
 
   // Remove from user's document set
-  await redis.srem(`user:${document.userId}:documents`, documentId)
+  await getRedis().srem(`user:${document.userId}:documents`, documentId)
 
   // Delete document data
-  await redis.del(`document:${documentId}`)
+  await getRedis().del(`document:${documentId}`)
 }
 
 export async function deleteUser(userId: string): Promise<void> {
@@ -197,11 +204,11 @@ export async function deleteUser(userId: string): Promise<void> {
   }
 
   // Remove user from users set
-  await redis.srem("users", user.email)
+  await getRedis().srem("users", user.email)
 
   // Delete user data
-  await redis.del(`user:${user.email}`)
-  await redis.del(`user:${userId}:documents`)
+  await getRedis().del(`user:${user.email}`)
+  await getRedis().del(`user:${userId}:documents`)
 }
 
 // Statistics
